@@ -374,7 +374,7 @@ class App {
       }
     };
 
-    this.game.onMiss = () => {
+    this.game.onMiss = (inputChar, targetChar) => {
       soundManager.playMiss();
       this.showInputFeedback(false);
       const area = this.isOnline ? document.getElementById('battle-typing-area') : this.els.typingArea;

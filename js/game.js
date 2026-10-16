@@ -235,6 +235,9 @@ class SushiGame {
   }
 
   onPlateTimeout() {
+    // ん末尾の保留完了中: タイムアウトを無視（次のキー入力時に処理される）
+    if (this._pendingComplete) return;
+
     if (this.mode === 'speed' || this.mode === 'sudden_death') {
       this.endGame();
       return;
