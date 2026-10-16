@@ -4,6 +4,7 @@ class App {
     this.currentScreen = 'title';
     this.isOnline = false;
     this.currentMode = 'normal';
+    this.koDelay = false;
     // Removed initParticles since ParticleSystem is not defined
   }
 
@@ -283,14 +284,20 @@ class App {
     });
   }
 
+  // Sanitize a name for use as a DOM id (strip non-alphanumeric chars)
+  safeDomId(name) {
+    return name.replace(/[^a-zA-Z0-9_]/g, '_');
+  }
+
   startCountdown(callback) {
     this.showScreen('countdown');
     const cdNum = document.getElementById('countdown-number');
     let count = 3;
     cdNum.textContent = count;
     soundManager.playCountdown();
-    
-    const iv = setInterval(() => {
+
+    if (this._countdownIv) clearInterval(this._countdownIv);
+    const iv = this._countdownIv = setInterval(() => {
       count--;
       if (count > 0) {
         cdNum.textContent = count;
@@ -709,7 +716,8 @@ class App {
 
     onlineBattle.onGameStart = (data) => {
       this.isOnline = true;
-      this.game.init(data.difficulty, 'normal', data.words);
+      this.koDelay = false;
+      this.game.init(data.difficulty, 'normal', data.words, data.timeLimit);
       this.setupBattleUI();
       
       const towContainer = document.getElementById('tug-of-war-container');
@@ -743,7 +751,7 @@ class App {
     };
 
     onlineBattle.onOpponentProgress = (data) => {
-      const safeId = escapeHtml(data.playerName).replace(/\s+/g, '_');
+      const safeId = this.safeDomId(data.playerName);
       const scoreEl = document.getElementById(`bp-score-${safeId}`);
       const comboEl = document.getElementById(`bp-combo-${safeId}`);
       if(scoreEl) scoreEl.textContent = data.score;
@@ -853,6 +861,8 @@ class App {
     onlineBattle.onTugOfWarWin = (data) => {
       this.game.stop();
       this.koDelay = true;
+      // Send final results so the server records wpm/maxCombo correctly
+      onlineBattle.sendFinished(this.game.getResults());
       const jpDisplay = document.getElementById('battle-word-jp');
       const readingDisplay = document.getElementById('battle-word-reading');
       if (jpDisplay) jpDisplay.textContent = 'K.O.!!';
@@ -870,7 +880,7 @@ class App {
 
   enterWaitingRoom(room) {
     this.showScreen('waiting');
-    this.els.waitingRoomId.textContent = room.id.substring(0,6);
+    this.els.waitingRoomId.textContent = room.roomId.substring(0,6);
     this.els.waitingDifficulty.textContent = SushiGame.DIFFICULTY_CONFIG[room.difficulty].label;
     this.updateWaitingPlayers();
   }
@@ -902,7 +912,7 @@ class App {
       if (p.name === onlineBattle.playerName) return; // Skip myself
       
       // Sanitize p.name for ID to prevent issues with spaces
-      const safeId = escapeHtml(p.name).replace(/\s+/g, '_');
+      const safeId = this.safeDomId(p.name);
       
       this.oppWords[p.name] = 0;
       const div = document.createElement('div');
@@ -922,7 +932,7 @@ class App {
   }
 
   spawnOpponentPlate(playerName) {
-    const safeId = escapeHtml(playerName).replace(/\s+/g, '_');
+    const safeId = this.safeDomId(playerName);
     const track = document.getElementById(`bp-track-${safeId}`);
     if (!track) return;
     

@@ -39,6 +39,11 @@ class OnlineBattle {
       console.log('Connected to battle server');
     });
 
+    this.socket.on('connect_error', (err) => {
+      if (this.onError) this.onError('サーバーに接続できません: ' + err.message);
+      else alert('サーバーに接続できません: ' + err.message);
+    });
+
     this.socket.on('room-list', (rooms) => {
       if (this.onRoomList) this.onRoomList(rooms);
     });

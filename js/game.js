@@ -15,6 +15,7 @@ class SushiGame {
     this.wordQueue = [];
     this.isRunning = false;
     this.intervalId = null;
+    this.elapsedMs = 0;
     this.courseCost = 0;
     
     // Renda Meter & Tally
@@ -88,13 +89,14 @@ class SushiGame {
     return 1.0;
   }
 
-  init(difficulty, mode = 'normal', wordList = null) {
+  init(difficulty, mode = 'normal', wordList = null, timeLimit = null) {
     this.difficulty = difficulty;
     this.mode = mode;
     this.isOnline = !!wordList;
     const config = SushiGame.DIFFICULTY_CONFIG[difficulty];
-    this.timeLimit = config.time;
+    this.timeLimit = timeLimit || config.time;
     this.timer = this.timeLimit;
+    this.elapsedMs = 0;
     this.courseCost = config.cost;
     this.score = 0;
     this.combo = 0;
@@ -139,6 +141,11 @@ class SushiGame {
   }
 
   start() {
+    // Clear any pre-existing timer to avoid double intervals
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
     this.isRunning = true;
     this.nextWord();
     
@@ -146,6 +153,7 @@ class SushiGame {
     
     this.intervalId = setInterval(() => {
       this.timer--;
+      this.elapsedMs += 1000;
       if (this.onTimerUpdate) this.onTimerUpdate(this.timer);
       
       if (this.timer <= 0) {
@@ -166,6 +174,11 @@ class SushiGame {
 
   nextWord() {
     if (this.wordQueue.length === 0) {
+      if (this.isOnline) {
+        // Online battles use the server-provided word list; do not refill from the local DB
+        this.currentWord = null;
+        return;
+      }
       if (this.difficulty) {
         this.wordQueue = [...window.WORD_DATABASE[this.difficulty]];
         this.shuffleWords();
@@ -175,7 +188,7 @@ class SushiGame {
       }
     }
     
-    this.currentWord = this.wordQueue.shift();
+    this.currentWord = { ...this.wordQueue.shift() };
     this.currentCharIndex = 0;
     this.typedString = "";
     this.wordsSpawned++;
@@ -235,8 +248,12 @@ class SushiGame {
   }
 
   onPlateTimeout() {
-    // ん末尾の保留完了中: タイムアウトを無視（次のキー入力時に処理される）
-    if (this._pendingComplete) return;
+    // ん末尾の保留完了中: タイムアウト時は保留を確定して単語完了（スタックを避ける）
+    if (this._pendingComplete) {
+      this._pendingComplete = false;
+      this._finishWord();
+      return;
+    }
 
     if (this.mode === 'speed' || this.mode === 'sudden_death') {
       this.endGame();
@@ -314,6 +331,25 @@ class SushiGame {
     }
 
     let targetChar = this.currentWord.romaji[this.currentCharIndex].toLowerCase();
+
+    // Long-vowel marker '-': skip it automatically without requiring a keypress
+    // (e.g. "ko-hi-" is typed as "kohi")
+    if (targetChar === '-') {
+      this.currentCharIndex++;
+      this.typedString += '-';
+
+      if (this.currentCharIndex >= this.currentWord.romaji.length) {
+        if (this.currentWord.romaji.endsWith('n')) {
+          this._pendingComplete = true;
+        } else {
+          this._finishWord();
+        }
+        return;
+      }
+
+      if (this.onCorrectKey) this.onCorrectKey(this.typedString, this.currentWord.romaji.substring(this.currentCharIndex));
+      return;
+    }
 
     this.totalKeystrokes++;
 
@@ -436,8 +472,8 @@ class SushiGame {
   }
 
   calculateWPM() {
-    const timeElapsed = (this.timeLimit - this.timer) || 1; // avoid /0
-    const minutes = timeElapsed / 60;
+    // Use tracked elapsed time (immune to time extensions) to compute minutes
+    const minutes = (this.elapsedMs || 1000) / 60000;
     return Math.round((this.correctKeystrokes / 5) / minutes) || 0; // standard WPM is chars/5
   }
 
