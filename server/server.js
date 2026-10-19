@@ -488,6 +488,7 @@ function checkBattleComplete(roomId) {
 function finishBattle(roomId) {
   const room = rooms.get(roomId);
   if (!room) return;
+  if (room.status !== 'playing') return;
 
   room.status = 'finished';
   room.lastActivity = Date.now();
@@ -898,6 +899,8 @@ io.on('connection', (socket) => {
   // --- Wagyu Claimed ---
   socket.on('wagyu-claimed', (data) => {
     try {
+      if (!data || !data.roomId) return;
+      data.roomId = data.roomId.toUpperCase();
       const room = rooms.get(data.roomId);
       if (!room || room.status !== 'playing') return;
       if (room.wagyuActive && room.wagyuId === data.wagyuId) {
@@ -922,6 +925,8 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: 'Room not found' });
         return;
       }
+
+      if (room.status !== 'playing') return;
 
       const player = room.players.get(socket.id);
       if (!player) {

@@ -90,6 +90,16 @@ class SushiGame {
   }
 
   init(difficulty, mode = 'normal', wordList = null, timeLimit = null) {
+    // Clear any pending timers from a previous run to avoid stale intervals/timeouts
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    if (this.plateTimeout) {
+      clearTimeout(this.plateTimeout);
+      this.plateTimeout = null;
+    }
+
     this.difficulty = difficulty;
     this.mode = mode;
     this.isOnline = !!wordList;

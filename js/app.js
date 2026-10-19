@@ -356,7 +356,7 @@ class App {
       tRem.textContent = word.romaji.substring(1);
       
       if (this.isOnline) {
-        onlineBattle.sendProgress(this.game.score, this.game.combo, this.game.wordsSpawned);
+        onlineBattle.sendProgress(this.game.score, this.game.combo, this.game.wordsCompleted);
       }
     };
 
